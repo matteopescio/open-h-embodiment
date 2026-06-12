@@ -17,8 +17,8 @@
   <meta property="og:site_name" content="Open-H Consortium">
   <meta property="og:title" content="Open-H-Embodiment: A Large-Scale Dataset for Enabling Foundation Models in Medical Robotics">
   <meta property="og:description" content="The first large-scale, multi-institution, multi-robot open dataset for medical robot learning: 780 hours across 50 institutions worldwide and 20 robotic platforms.">
-  <meta property="og:url" content="https://open-h.github.io">
-  <meta property="og:image" content="https://open-h.github.io/assets/static/images/open_h_overview.png">
+  <meta property="og:url" content="https://open-h.github.io/open-h-embodiment">
+  <meta property="og:image" content="https://open-h.github.io/open-h-embodiment/assets/static/images/open_h_overview.png">
   <meta property="og:image:width" content="1420">
   <meta property="og:image:height" content="793">
   <meta property="og:image:alt" content="Open-H-Embodiment - Dataset Overview">
@@ -32,7 +32,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Open-H-Embodiment: A Large-Scale Dataset for Enabling Foundation Models in Medical Robotics">
   <meta name="twitter:description" content="The first large-scale, multi-institution, multi-robot open dataset for medical robot learning: 780 hours across 50 institutions worldwide and 20 robotic platforms.">
-  <meta name="twitter:image" content="https://open-h.github.io/assets/static/images/open_h_overview.png">
+  <meta name="twitter:image" content="https://open-h.github.io/open-h-embodiment/assets/static/images/open_h_overview.png">
   <meta name="twitter:image:alt" content="Open-H-Embodiment - Dataset Overview">
 
   <!-- Academic/Research Specific -->
@@ -90,6 +90,7 @@
   <script defer src="assets/static/js/bulma-carousel.min.js"></script>
   <script defer src="assets/static/js/bulma-slider.min.js"></script>
   <script defer src="assets/static/js/index.js"></script>
+  <script defer src="assets/static/js/dataset_explorer.js"></script>
   
   <!-- Structured Data for Academic Papers -->
   <script type="application/ld+json">
@@ -131,8 +132,8 @@
       }
     ],
     "datePublished": "2026",
-    "url": "https://open-h.github.io",
-    "image": "https://open-h.github.io/assets/static/images/open_h_overview.png",
+    "url": "https://open-h.github.io/open-h-embodiment",
+    "image": "https://open-h.github.io/open-h-embodiment/assets/static/images/open_h_overview.png",
     "keywords": ["medical robotics", "foundation models", "surgical autonomy", "open dataset", "robot learning"],
     "abstract": "We introduce Open-H-Embodiment, the first large-scale, multi-institution, multi-robot open dataset for medical robot learning, comprising synchronized video and kinematics collected across 50 institutions worldwide and 20 robotic platforms, spanning 780 hours of data.",
     "isAccessibleForFree": true,
@@ -150,16 +151,80 @@
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "Open-H Consortium",
-    "url": "https://open-h.github.io",
+    "url": "https://open-h.github.io/open-h-embodiment",
     "sameAs": [
       "https://github.com/open-h/open-h-embodiment",
       "https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-Open-H-Embodiment"
     ]
   }
   </script>
+
+  <!-- Dataset Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    "name": "Open-H-Embodiment",
+    "description": "A large-scale, multi-institution, multi-robot open dataset for medical robot learning, comprising synchronized video and kinematics across 50 institutions and 20 robotic platforms, spanning 780 hours. A machine-readable index of all 121 dataset directories is available as JSON, with per-directory Hugging Face download commands.",
+    "url": "https://open-h.github.io/open-h-embodiment",
+    "license": "https://creativecommons.org/licenses/by/4.0/",
+    "isAccessibleForFree": true,
+    "creator": { "@type": "Organization", "name": "Open-H Consortium" },
+    "distribution": [
+      {
+        "@type": "DataDownload",
+        "encodingFormat": "application/json",
+        "name": "Dataset index (JSON)",
+        "description": "Index of all dataset directories with metadata fields (dataset_path_relative, gt_domain, contributor_cluster, robot_platform, task_family, and sensor-modality flags). Use dataset_path_relative to build hf download --include patterns.",
+        "contentUrl": "https://open-h.github.io/open-h-embodiment/assets/static/data/table_rows.json"
+      },
+      {
+        "@type": "DataDownload",
+        "encodingFormat": "application/x-parquet",
+        "name": "Full dataset on Hugging Face",
+        "contentUrl": "https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-Open-H-Embodiment"
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
 
+  <!--
+    NOTE FOR AI AGENTS / PROGRAMMATIC ACCESS
+    ----------------------------------------
+    The dataset table on this page is rendered client-side from JSON; the
+    rows are NOT present in this static HTML. To inspect the datasets
+    programmatically, fetch the machine-readable index instead:
+
+        assets/static/data/table_rows.json
+        (e.g. https://open-h.github.io/open-h-embodiment/assets/static/data/table_rows.json)
+
+    Shape: { schema_version, generated_at, row_count, rows: [ ... ] }
+    Each row includes (among other fields):
+      dataset_path_relative  - path within the Hugging Face dataset repo
+      gt_domain              - surgical | ultrasound | endoscopy
+      contributor_cluster    - contributing institution/group
+      robot_platform         - robot/system used
+      task_family            - task category
+      environment_primary    - clinical | ex_vivo | phantom | tabletop | simulation | in_vivo
+      has_stereo, has_ultrasound, has_endoscope, has_language, ...  - modality flags
+
+    To download a dataset directory, use the `hf` CLI with the row's
+    dataset_path_relative as an --include glob:
+
+        hf download nvidia/PhysicalAI-Robotics-Open-H-Embodiment --repo-type dataset \
+          --include "<dataset_path_relative>/*" \
+          --local-dir ./open-h-embodiment
+
+    Repeat --include for multiple directories, or use a prefix like
+    "Ultrasound/*" to fetch a whole domain.
+  -->
+
+  <!-- Two views in one file: paper page and explorer, toggled by URL hash. -->
+
+  <!-- ============================ PAPER VIEW ========================== -->
+  <div id="view-paper" class="app-view">
 
   <!-- Scroll to Top Button -->
   <button class="scroll-to-top" onclick="scrollToTop()" title="Scroll to top" aria-label="Scroll to top">
@@ -504,6 +569,20 @@
                   </a>
                 </span>
 
+                <!-- Dataset Explorer -->
+                <span class="link-block">
+                  <a href="#explorer"
+                    class="button is-normal is-rounded de-explore-btn">
+                    <span class="icon">
+                      <i class="fas fa-search"></i>
+                    </span>
+                    <span>Explore Datasets</span>
+                    <span class="icon de-explore-arrow">
+                      <i class="fas fa-arrow-right"></i>
+                    </span>
+                  </a>
+                </span>
+
               </div>
             </div>
           </div>
@@ -721,7 +800,7 @@
   title={Open-H-Embodiment: A Large-Scale Dataset for Enabling Foundation Models in Medical Robotics},
   author={Nelson, Nigel and Chen, Juo-Tung and Haworth, Jesse and Chen, Xinhao and Zbinden, Lukas and Huang, Dianye and Abdelaal, Alaa Eldin and Arezzo, Alberto and Acar, Ayberk and Alambeigi, Farshid and Ammirati, Carlo Alberto and Ao, Yunke and Aranda Rodriguez, Pablo David and Atar, Soofiyan and Ballo, Mattia and Barnes, Noah and Barontini, Federica and Binkiewicz, Filip and Black, Peter and Bodenstedt, Sebastian and Borgioli, Leonardo and Budjak, Nikola and Calm{\'e}, Benjamin and Carrillo, Fabio and Cavalcanti, Nicola and Chen, Changwei and Chen, Haoxin and Chen, Sihang and Chen, Qihan and Chen, Zhongyu and Chen, Ziyang and Cheng, Shing Shin and Cheng, Meiqing and Cheng, Min and Chiu, Zih-Yun Sarah and Chu, Xiangyu and Correa-Gallego, Camilo and Dagnino, Giulio and Deguet, Anton and Delgado, Jacob and DeLong, Jonathan C. and Deng, Kaizhong and Dimitrakakis, Alexander and Ding, Qingpeng and Ding, Hao and Distefano, Giovanni and Donoho, Daniel and Duan, Anqing and Esposito, Marco and Farritor, Shane and Fayad, Jad and Fayad, Zahi and Ferradosa, Mario and Filicori, Filippo and Finn, Chelsea and F{\"u}rnstahl, Philipp and Ge, Jiawei and Giannarou, Stamatia and Giralt Ludevid, Xavier and Giraud, Frederic and Godbole, Aditya Amit and Goldberg, Ken and Goldenberg, Antony and Granero Marana, Diego and Guo, Xiaoqing and Haidegger, Tam{\'a}s and Hailey, Evan and Hansen, Pascal and Hao, Ziyi and Hari, Kush and Hayashi, Kengo and Hawkins, Jonathon and Haworth, Shelby and Hellig, Ortrun and Herrell, S. Duke and Hong, Zhouyang and Howe, Andrew and Hu, Junlei and Hu, Zhaoyang Jacopo and Jain, Ria and Rafiee Javazm, Mohammad and Ji, Howard and Ji, Rui and Ji, Jianmin and Jiang, Zhongliang and Jones, Dominic and Jopling, Jeffrey and Jordan, Britton and Ju, Ran and Kam, Michael and Kang, Luoyao and Kang, Fausto and Kapuria, Siddhartha and Kazanzides, Peter and Khan, Aimal and Kiehler, Sonika and Kilmer, Ethan and Kim, Ji Woong (Brian) and Korzeniowski, Przemys{\l}aw and Kuchi, Chandra and Kumar, Nithesh and Kuntz, Alan and Lavagno, Federico and Lee, Yu Chung and Lee, Hao-Chih and Li, Hang and Li, Zhen and Liang, Xiao and Lin, Xinxin and Lin, Jinsong and Liu, Chang and Liu, Fei and Liu, Pei and Liu, Yun-hui and Liuchen, Wanli and Luk{\'a}cs, Eszter and Mann, Sareena and Mannas, Miles and Marinelli, Brett and Martyniak, Sabina and Marzola, Francesco and Mazza, Lorenzo and Mei, Xueyan and Morais, Maria Clara and Muratore, Luigi and Narayanaswamy, Chetan Reddy and Naskr{\k{e}}t, Micha{\l} and Navarro-Alarcon, David and Neary, Cyrus and Ng, Chi Kit and Nguan, Christopher and Noonan, David and Oh, Ki Hwan and Olesch, Tom Christian and Okamura, Allison M. and Opfermann, Justin and Pescio, Matteo and Pham, Doan Xuan Viet and Porras, Tito and Ren, Hongliang and Rodriguez Jimenez, Ariel and Rodriguez y Baena, Ferdinando and Salcudean, Septimiu E. and Sathya, Asmitha and Satish, Preethi and Seenivasan, Lalithkumar and Shao, Jiaqi and Shen, Yiqing and Sheng, Yu and Shi, Lucy XiaoYang and Soul{\'e}, Zoe and Speidel, Stefanie and Su, Mingwu and Su, Jianhao and Sunmola, Idris and Tak{\'a}cs, Krist{\'o}f and Tang, Yunxi and Thornycroft, Patrick and Tian, Yu and Thompson, Jordan and Turkcan, Mehmet K. and Unberath, Mathias and Valdastri, Pietro and Vives, Carlos and Vuong, Quan and Wagner, Martin and Wang, Farong and Wang, Wei and Wang, Lidian and Wang, Chung-Pang and Wang, Guankun and Wang, Junyi and Wang, Erqi and Wang, Ziyi and Watts, Tanner and Wein, Wolfgang and Wu, Yimeng and Wu, Zijian and Wu, Hongjun and Wu, Luohong and Wu, Jie Ying and Wu, Junlin and Wu, Victoria and Wu, Kaixuan and W{\'o}jcikowski, Mateusz and Xiao, Yunye and Xiao, Nan and Xie, Wenxuan and Yang, Hao and Yang, Tianqi and Yang, Yinuo and Ye, Menglong and Yeung, Ryan S. and Yilmaz, Nural and Yin, Chim Ho and Yip, Michael and Younis, Rayan and Yu, Chenhao and Zaman, Sayem Nazmuz and Zefran, Milos and Zhang, Han and Zhang, Yuelin and Zhang, Yidong and Zhang, Yanyong and Zhang, Xuyang and Zhang, Yameng and Zhang, Joyce and Zhong, Ning and Zhou, Peng and Zhou, Haoying and Zuo, Xiuli and Navab, Nassir and Azizian, Mahdi and Huver, Sean D. and Krieger, Axel},
   year={2026},
-  url={https://open-h.github.io}
+  url={https://open-h.github.io/open-h-embodiment}
 }</code></pre>
     </div>
   </section>
@@ -733,8 +812,8 @@
         <div class="column is-8">
           <div class="content">
             <p>
-              This page was built using the <a href="https://github.com/eliahuhorwitz/Academic-project-page-template" target="_blank">Academic Project Page Template</a> which was adopted from the <a href="https://nerfies.github.io" target="_blank">Nerfies</a> project page.
-              This website is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative Commons Attribution-ShareAlike 4.0 International License</a>.
+              This page was built using the <a href="https://github.com/eliahuhorwitz/Academic-project-page-template" target="_blank" rel="noopener">Academic Project Page Template</a> which was adopted from the <a href="https://nerfies.github.io" target="_blank" rel="noopener">Nerfies</a> project page.
+              This website is licensed under a <a rel="license noopener" href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative Commons Attribution-ShareAlike 4.0 International License</a>.
             </p>
           </div>
         </div>
@@ -743,5 +822,150 @@
   </footer>
 
   </main>
+  </div><!-- /#view-paper -->
+
+
+  <!-- ========================== EXPLORER VIEW ========================= -->
+  <div id="view-explorer" class="app-view de-page" hidden>
+
+    <!-- Sticky top bar with back navigation -->
+    <header class="de-topbar">
+      <div class="de-topbar-inner">
+        <a href="#" class="de-back-btn" title="Back to the paper page">
+          <span class="de-back-arrow"><i class="fas fa-arrow-left"></i></span>
+          <span class="de-back-text">Back to paper</span>
+        </a>
+        <div class="de-topbar-titles">
+          <span class="de-topbar-title">Dataset Explorer</span>
+          <span class="de-topbar-sub">Open-H-Embodiment</span>
+        </div>
+        <span class="de-topbar-spacer" aria-hidden="true"></span>
+      </div>
+    </header>
+
+    <main class="de-page-main">
+      <section class="de-explorer-section">
+        <div class="de-explorer-container">
+
+          <div class="content has-text-centered de-explorer-intro">
+            <h1 class="title is-3">Explore the Dataset</h1>
+            <p class="de-explorer-lead">
+              Search and filter all contributed datasets by domain, contributor, robot, environment, task, and sensor modality.
+              For any selection, copy a ready-to-run <code>hf download</code> command or jump straight to that directory on Hugging Face.
+            </p>
+          </div>
+
+          <div class="de-panel">
+            <!-- Controls -->
+            <div class="de-controls">
+              <div class="de-search-wrap">
+                <label for="de-search" class="de-sr-only">Search datasets</label>
+                <input type="text" id="de-search" class="de-input" placeholder="Search datasets, contributors, robots, tasks, streams…" autocomplete="off" />
+              </div>
+
+              <div class="de-filter-grid">
+                <div class="de-field">
+                  <span class="de-field-label">Domain</span>
+                  <div id="de-f-domain" class="de-dd"></div>
+                </div>
+                <div class="de-field">
+                  <span class="de-field-label">Robot</span>
+                  <div id="de-f-robot" class="de-dd"></div>
+                </div>
+                <div class="de-field">
+                  <span class="de-field-label">Environment</span>
+                  <div id="de-f-env" class="de-dd"></div>
+                </div>
+                <div class="de-field">
+                  <span class="de-field-label">Task</span>
+                  <div id="de-f-task" class="de-dd"></div>
+                </div>
+                <div class="de-field">
+                  <span class="de-field-label">Collection method</span>
+                  <div id="de-f-collection" class="de-dd"></div>
+                </div>
+                <div class="de-field">
+                  <span class="de-field-label">Arm count</span>
+                  <div id="de-f-arms" class="de-dd"></div>
+                </div>
+              </div>
+
+              <div class="de-modality-row">
+                <span class="de-field-label">Modalities</span>
+                <div id="de-f-modalities" class="de-mod-toggles"></div>
+              </div>
+
+              <div class="de-action-row">
+                <span id="de-summary" class="de-summary"></span>
+                <div class="de-action-btns">
+                  <button type="button" id="de-reset" class="de-btn de-btn-ghost">Reset</button>
+                  <button type="button" id="de-bulk-copy" class="de-btn de-btn-primary">
+                    <span class="de-bulk-label">Copy download command for all filtered</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Table -->
+            <div class="de-table-scroll">
+              <table id="de-table" class="de-table">
+                <thead>
+                  <tr>
+                    <th scope="col" data-sort="dataset" data-label="Dataset" tabindex="0" aria-sort="none">Dataset</th>
+                    <th scope="col" data-sort="group" data-label="Contributor" tabindex="0" aria-sort="none">Contributor</th>
+                    <th scope="col" data-sort="domain" data-label="Domain" tabindex="0" aria-sort="none">Domain</th>
+                    <th scope="col" data-sort="task" data-label="Task" tabindex="0" aria-sort="none">Task</th>
+                    <th scope="col" data-sort="environment" data-label="Environment" tabindex="0" aria-sort="none">Environment</th>
+                    <th scope="col" data-sort="robot" data-label="Robot" tabindex="0" aria-sort="none">Robot</th>
+                    <th scope="col" data-sort="hours" data-label="Scale" tabindex="0" aria-sort="descending">Scale</th>
+                    <th scope="col" class="de-th-actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="de-tbody">
+                  <tr class="de-skel-row"><td class="de-dataset"><div class="de-ds-cell"><span class="de-skel de-skel-thumb"></span><div class="de-ds-meta"><span class="de-skel de-skel-line w80"></span><span class="de-skel de-skel-line w60 sm"></span></div></div></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-pill"></span></td><td><span class="de-skel de-skel-line w80"></span></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-line w50 sm"></span><span class="de-skel de-skel-line w40 sm"></span></td><td class="de-actions"><span class="de-skel de-skel-btn"></span></td></tr>
+                  <tr class="de-skel-row"><td class="de-dataset"><div class="de-ds-cell"><span class="de-skel de-skel-thumb"></span><div class="de-ds-meta"><span class="de-skel de-skel-line w70"></span><span class="de-skel de-skel-line w50 sm"></span></div></div></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-pill"></span></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-line w50"></span></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-line w50 sm"></span><span class="de-skel de-skel-line w40 sm"></span></td><td class="de-actions"><span class="de-skel de-skel-btn"></span></td></tr>
+                  <tr class="de-skel-row"><td class="de-dataset"><div class="de-ds-cell"><span class="de-skel de-skel-thumb"></span><div class="de-ds-meta"><span class="de-skel de-skel-line w90"></span><span class="de-skel de-skel-line w60 sm"></span></div></div></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-pill"></span></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-line w50"></span></td><td><span class="de-skel de-skel-line w50 sm"></span><span class="de-skel de-skel-line w40 sm"></span></td><td class="de-actions"><span class="de-skel de-skel-btn"></span></td></tr>
+                  <tr class="de-skel-row"><td class="de-dataset"><div class="de-ds-cell"><span class="de-skel de-skel-thumb"></span><div class="de-ds-meta"><span class="de-skel de-skel-line w60"></span><span class="de-skel de-skel-line w50 sm"></span></div></div></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-pill"></span></td><td><span class="de-skel de-skel-line w80"></span></td><td><span class="de-skel de-skel-line w50"></span></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-line w50 sm"></span><span class="de-skel de-skel-line w40 sm"></span></td><td class="de-actions"><span class="de-skel de-skel-btn"></span></td></tr>
+                  <tr class="de-skel-row"><td class="de-dataset"><div class="de-ds-cell"><span class="de-skel de-skel-thumb"></span><div class="de-ds-meta"><span class="de-skel de-skel-line w80"></span><span class="de-skel de-skel-line w60 sm"></span></div></div></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-pill"></span></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-line w50 sm"></span><span class="de-skel de-skel-line w40 sm"></span></td><td class="de-actions"><span class="de-skel de-skel-btn"></span></td></tr>
+                  <tr class="de-skel-row"><td class="de-dataset"><div class="de-ds-cell"><span class="de-skel de-skel-thumb"></span><div class="de-ds-meta"><span class="de-skel de-skel-line w70"></span><span class="de-skel de-skel-line w50 sm"></span></div></div></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-pill"></span></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-line w50"></span></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-line w50 sm"></span><span class="de-skel de-skel-line w40 sm"></span></td><td class="de-actions"><span class="de-skel de-skel-btn"></span></td></tr>
+                  <tr class="de-skel-row"><td class="de-dataset"><div class="de-ds-cell"><span class="de-skel de-skel-thumb"></span><div class="de-ds-meta"><span class="de-skel de-skel-line w90"></span><span class="de-skel de-skel-line w60 sm"></span></div></div></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-pill"></span></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-line w50"></span></td><td><span class="de-skel de-skel-line w50 sm"></span><span class="de-skel de-skel-line w40 sm"></span></td><td class="de-actions"><span class="de-skel de-skel-btn"></span></td></tr>
+                  <tr class="de-skel-row"><td class="de-dataset"><div class="de-ds-cell"><span class="de-skel de-skel-thumb"></span><div class="de-ds-meta"><span class="de-skel de-skel-line w60"></span><span class="de-skel de-skel-line w50 sm"></span></div></div></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-pill"></span></td><td><span class="de-skel de-skel-line w80"></span></td><td><span class="de-skel de-skel-line w50"></span></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-line w50 sm"></span><span class="de-skel de-skel-line w40 sm"></span></td><td class="de-actions"><span class="de-skel de-skel-btn"></span></td></tr>
+                  <tr class="de-skel-row"><td class="de-dataset"><div class="de-ds-cell"><span class="de-skel de-skel-thumb"></span><div class="de-ds-meta"><span class="de-skel de-skel-line w80"></span><span class="de-skel de-skel-line w60 sm"></span></div></div></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-pill"></span></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-line w50"></span></td><td><span class="de-skel de-skel-line w50 sm"></span><span class="de-skel de-skel-line w40 sm"></span></td><td class="de-actions"><span class="de-skel de-skel-btn"></span></td></tr>
+                  <tr class="de-skel-row"><td class="de-dataset"><div class="de-ds-cell"><span class="de-skel de-skel-thumb"></span><div class="de-ds-meta"><span class="de-skel de-skel-line w70"></span><span class="de-skel de-skel-line w50 sm"></span></div></div></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-pill"></span></td><td><span class="de-skel de-skel-line w60"></span></td><td><span class="de-skel de-skel-line w50"></span></td><td><span class="de-skel de-skel-line w70"></span></td><td><span class="de-skel de-skel-line w50 sm"></span><span class="de-skel de-skel-line w40 sm"></span></td><td class="de-actions"><span class="de-skel de-skel-btn"></span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="de-note">
+              Scale is reported as episodes / frames / hours. A dagger (&dagger;) indicates ground-truth kinematics are not included in the released dataset.
+              Commands use the <code>hf</code> CLI (<code>pip install -U "huggingface_hub[cli]"</code>).
+            </p>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div><!-- /#view-explorer -->
+
+
+  <!-- Hash router: toggles between the paper view and the explorer view. -->
+  <script>
+  (function () {
+    var paper = document.getElementById("view-paper");
+    var explorer = document.getElementById("view-explorer");
+
+    function syncView() {
+      var showExplorer = window.location.hash === "#explorer";
+      explorer.hidden = !showExplorer;
+      paper.hidden = showExplorer;
+      document.body.classList.toggle("explorer-active", showExplorer);
+      window.scrollTo(0, 0);
+    }
+
+    window.addEventListener("hashchange", syncView);
+    syncView();
+  })();
+  </script>
+
   </body>
 </html>
