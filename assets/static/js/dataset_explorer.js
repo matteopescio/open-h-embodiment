@@ -12,6 +12,7 @@
   const HF_REPO = "nvidia/PhysicalAI-Robotics-Open-H-Embodiment";
   const HF_BASE = "https://huggingface.co/datasets/" + HF_REPO;
   const HF_TREE = HF_BASE + "/tree/main/";
+  const HF_BLOB = HF_BASE + "/blob/main/";
   const THUMB_DIR = "assets/static/images/dataset_thumbnails/";
 
   // ── Presentation labels ───────────────────────────────────────────
@@ -222,6 +223,16 @@
     return HF_TREE + encoded;
   }
 
+  function hfReadmeUrl(r) {
+    // README lives at <dataset_root>/README.md.
+    const encoded = r.dataset_path_relative
+      .replace(/\\/g, "/")
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/");
+    return HF_BLOB + encoded + "/README.md";
+  }
+
   function thumbUrl(r) {
     return THUMB_DIR + encodeURIComponent(r.dataset_id) + ".jpg";
   }
@@ -413,6 +424,8 @@
         '<td class="de-actions">' +
           '<a class="de-act-btn de-hf" href="' + hfDirUrl(r) + '" target="_blank" rel="noopener" title="Browse on Hugging Face">' +
             "&#129303; View</a>" +
+          '<a class="de-act-btn de-readme" href="' + hfReadmeUrl(r) + '" target="_blank" rel="noopener" title="Open README.md on Hugging Face">' +
+            "&#129303; README.md</a>" +
           '<button class="de-act-btn de-copy" type="button" title="Copy hf download command">' +
             '<span class="de-copy-label">Copy cmd</span></button>' +
         "</td>";

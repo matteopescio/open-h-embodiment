@@ -1557,7 +1557,7 @@ a:focus {
   white-space: nowrap;
 }
 
-.de-actions { text-align: right; white-space: nowrap; min-width: 140px; }
+.de-actions { text-align: right; white-space: nowrap; min-width: 220px; }
 .de-act-btn {
   display: inline-flex;
   align-items: center;
@@ -1578,6 +1578,15 @@ a:focus {
   color: var(--text-primary);
 }
 .de-hf:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  transform: translateY(-1px);
+}
+.de-readme {
+  background: var(--background-primary);
+  color: var(--text-primary);
+}
+.de-readme:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
   transform: translateY(-1px);
