@@ -1,13 +1,29 @@
 #!/usr/bin/env python
 
 """
-ROS Bag Parser for Extracting Time-Series Data from Specific Topics.
+ROS bag parser for extracting scalar calibration signals from a robotic
+ultrasound recording (ultrasound B-mode images vs. the robot's end-effector
+pose).
 
-This script processes a ROS1 `.bag` file and extracts time-aligned data from selected topics.
-It is useful for preparing datasets for machine learning or analysis by converting ROS messages
-(e.g., images, transforms) into a structured dictionary format and saving it as a `.pkl` file.
+ROS versions and non-ROS rigs:
+    This example targets ROS1 (rospy / rosbag). ROS 2 users can record with
+    rosbag2 and adapt this parsing step; the offset-then-sync pattern is
+    unchanged. Non-ROS rigs (robot SDK logs, for example dVRK or KUKA FRI
+    state streams, or frame-grabber SDK captures) can skip this file and
+    enter the pipeline at the temp_cali.py stage with any pair of
+    timestamped arrays.
 
-Core Features:
+This script processes a ROS1 `.bag` file and extracts timestamped scalar
+signals from selected topics. It prepares the inputs for temporal
+calibration (temp_cali.py): command the robot to periodically compress and
+decompress a phantom vertically (a sinusoidal end-effector motion) while
+recording both the ultrasound images (/ultrasound/image_raw) and the robot
+end-effector pose (/robot/ee_pose), then reduce each stream to one scalar
+per message so the two can be sine-fitted and phase-compared. The estimated
+per-topic offsets (for example, frame-grabber latency on the ultrasound
+image path) are then applied in post_sync.py.
+
+Core features:
 --------------
 - Extracts messages and timestamps from specified ROS topics.
 - Organizes data in a dictionary with the format:
@@ -15,47 +31,74 @@ Core Features:
     - "y_<topic_name>": list of associated float-encoded message data
 - Saves the extracted data to disk as a Python pickle file.
 
-Placeholders:
--------------
-- `image_to_float`: Needs implementation for extracting visual features from image data.
-- `tf_to_float`: Needs implementation for converting transformation messages to floats.
+Conversion functions:
+---------------------
+- `image_to_float`: STUB, must be implemented for your rig. Track a distinct
+  visual keypoint in the ultrasound view (for example, a phantom landmark)
+  and return its pixel coordinate; for RGB cameras, an ArUco or other
+  marker's pixel coordinate is a good alternative.
+- `pose_to_float`: working example that returns the norm of a
+  geometry_msgs/PoseStamped translation. Rename or reroute it if your robot
+  publishes a different message type.
 
 Dependencies:
 -------------
-- ROS (rospy, rosbag)
+- ROS1 (rospy, rosbag)
 - OpenCV + cv_bridge
 - NumPy
 - Pickle
-
 """
 
 
-import rosbag
 import pickle
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
+
 import numpy as np
+import rosbag
+from cv_bridge import CvBridge
 
 
 def image_to_float(bridge, msg):
-    cv_image = bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-    # --- PLACEHOLDER: extract the pixel coordinate of a visual feature point
-    # e.g., cv_image_proc = detect marker or keypoint
-    return cv_image_proc # float
+    """
+    Reduce an ultrasound image to a single scalar for temporal calibration.
+
+    STUB: the implementation is rig-specific, so this function raises
+    NotImplementedError until you fill it in. Track a distinct visual
+    keypoint in the ultrasound view (for example, a phantom landmark, via
+    template matching or optical flow) and return one of its pixel
+    coordinates (u or v) as a float. For RGB cameras, an ArUco or other
+    marker's pixel coordinate (via cv2.aruco) is a good alternative. The
+    returned scalar must oscillate with the compress/decompress motion so
+    temp_cali.py can fit a sine wave to it.
+    """
+    # Assignment is deliberately kept so the error message below can point at
+    # the decoded frame a real implementation would operate on.
+    cv_image = bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")  # noqa: F841
+    raise NotImplementedError(
+        "image_to_float is a stub: track a distinct visual keypoint in the "
+        "ultrasound view (cv_image above is the decoded frame) and return one "
+        "of its pixel coordinates as a float."
+    )
 
 
-def tf_to_float(msg):
-    # --- PLACEHOLDER: Extract a fixed metric from msg,
-    # e.g., tf_data_proc = norm of end-effector’s translation
-    return tf_data_proc # float
+def pose_to_float(msg):
+    """
+    Working example: reduce a geometry_msgs/PoseStamped from the robot
+    end-effector to a single scalar, the Euclidean norm of the end-effector
+    translation. As the robot periodically compresses and decompresses the
+    phantom, this norm oscillates at the same frequency, which is all
+    temp_cali.py needs. (For a purely vertical compress/decompress motion,
+    returning the z-component p.z alone would work just as well.)
+    """
+    p = msg.pose.position
+    return float(np.linalg.norm([p.x, p.y, p.z]))
 
 
 def parse_bag(bag_file_path, topics_of_interest, output_pkl_path):
     '''
-    Parses a ROS1 bag file and extracts data from selected topics into a dictionary,
-    which is then saved as a pickle file. Each topic will produce:
+    Parses a ROS1 bag file and extracts data from selected topics into a
+    dictionary, which is then saved as a pickle file. Each topic produces:
         - t_<topic>: list of timestamps (in seconds)
-        - y_<topic>: list of message data (converted where possible)
+        - y_<topic>: list of message data (converted to floats where possible)
     Parameters:
     -----------
         bag_file_path (str): Path to the input .bag file.
@@ -80,12 +123,15 @@ def parse_bag(bag_file_path, topics_of_interest, output_pkl_path):
         data_dict[t_key].append(t.to_sec())
 
         # Handle message parsing depending on type/topic
-        if isinstance(msg, Image):
+        # isinstance(msg, sensor_msgs.msg.Image) is always False for rosbag messages (rosbag deserializes into dynamically generated genpy classes), so route on the message type string instead.
+        if getattr(msg, "_type", "") == "sensor_msgs/Image":
             data = image_to_float(bridge, msg)
-        elif topic == "/tf":
-            data = tf_to_float(msg)
+        elif topic == "/robot/ee_pose":
+            data = pose_to_float(msg)
         else:
-            data = msg # and many other data streams
+            # TODO: convert any other stream you want to calibrate against
+            # (joint positions, force/torque readings, ...) to a float here.
+            data = msg
 
         # Append message data
         data_dict[y_key].append(data)
@@ -97,3 +143,12 @@ def parse_bag(bag_file_path, topics_of_interest, output_pkl_path):
         pickle.dump(data_dict, f)
 
     print(f"[INFO] Bag parsed and saved to: {output_pkl_path}")
+
+
+if __name__ == "__main__":
+    # Example usage. Implement image_to_float for your rig before running.
+    parse_bag(
+        bag_file_path="path/to/the/bagfile.bag",
+        topics_of_interest=["/ultrasound/image_raw", "/robot/ee_pose"],
+        output_pkl_path="path/to/calibration_signals.pkl",
+    )

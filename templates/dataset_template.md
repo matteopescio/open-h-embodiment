@@ -1,6 +1,6 @@
 <!--
-Open-H Embodiment Dataset README Template (v1.0)
-Please fill out this template and include it in the ./metadata directory of your LeRobot dataset.
+Open-H-Embodiment Dataset README Template (v2.0)
+Please fill out this template and include it as README.md in the ./meta directory of your LeRobot dataset.
 This file helps others understand the context and details of your contribution.
 -->
 
@@ -24,9 +24,9 @@ This file helps others understand the context and details of your contribution.
 
 | | |
 | :--- | :--- |
-| **Total Trajectories** | `[Number]` |
 | **Total Hours** | `[Number]` |
-| **Data Type** | `[ ] Clinical` `[ ] Ex-Vivo` `[ ] Table-Top Phantom` `[ ] Digital Simulation` `[ ] Physical Simulation` `[ ] Other (If checked, update "Other")` |
+| **Total Trajectories** | `[Number]` |
+| **Data Type** | `[ ] Clinical` `[ ] In-Vivo` `[ ] Ex-Vivo` `[ ] Phantom / Table-Top` `[ ] Simulation` |
 | **License** | CC BY 4.0 |
 | **Version** | `[e.g., 1.0]` |
 
@@ -125,6 +125,8 @@ This file helps others understand the context and details of your contribution.
 | **Medical Imager** | `[e.g., GE Voluson E10 Ultrasound, B-Mode]` |
 | **Other** | `[Specify]` |
 
+*Camera intrinsics (encouraged for calibrated optical cameras) are stored as a static file, `meta/calibration/camera_intrinsics.json`, keyed by camera feature name. State whether you provide them:* `[e.g., pinhole intrinsics for observation.images.room and observation.images.wrist in meta/calibration/camera_intrinsics.json]`
+
 ---
 
 ## 🎯 Action & State Space Representation
@@ -132,6 +134,8 @@ This file helps others understand the context and details of your contribution.
 *Describe how actions and robot states are represented in your dataset. This is crucial for understanding data compatibility and enabling effective policy learning.*
 
 ### Action Space Representation
+
+*Note: the shipped `action` / `observation.state` must follow the Standardized Representations below (absolute Cartesian end-effector pose with quaternions). Use these checklists to describe any additional or source-native representations included in the dataset.*
 
 **Primary Action Representation:**
 - [ ] **Absolute Cartesian** (position/orientation relative to robot base)
@@ -179,23 +183,28 @@ action: [x, y, z, qx, qy, qz, qw, gripper]
 
 **Example:**
 ```
-observation.state: [j1, j2, j3, j4, j5, j6, j7, gripper_pos]
-- j1-j7: Absolute joint positions for 7-DOF arm (radians)
-- gripper_pos: Current gripper opening (meters)
+observation.state: [x_m, y_m, z_m, qx, qy, qz, qw, gripper]
+- x_m, y_m, z_m: Measured end-effector position in the robot base frame (meters)
+- qx, qy, qz, qw: Measured end-effector orientation as a quaternion
+- gripper: Current gripper opening
+
+observation.meta.joint_positions: [j1, j2, j3, j4, j5, j6, j7]
+- j1-j7: Absolute joint positions for a 7-DOF arm (radians), auxiliary
 ```
 
-### 📋 Recommended Additional Representations
+### 📋 Standardized Representations
 
-*Even if not your primary action/state representation, we strongly encourage including these standardized formats for maximum compatibility:*
+*Open-H-Embodiment v2 standardizes on absolute Cartesian end-effector kinematics as the primary content of `action` and `observation.state`:*
 
-**Recommended Action Fields:**
-- **`action.cartesian_absolute`**: Absolute Cartesian pose with absolute quaternions
+**Primary Action & State Layout:**
+- **`action` / `observation.state`**: Absolute Cartesian end-effector pose with absolute quaternions
   ```
-  [x, y, z, qx, qy, qz, qw, gripper_angle]
+  [x_m, y_m, z_m, qx, qy, qz, qw, gripper]
   ```
+  Multi-arm platforms (e.g., dVRK PSM1 + PSM2) concatenate one block per arm.
 
-**Recommended State Fields:**
-- **`observation.state.joint_positions`**: Absolute positions for all articulated joints
+**Recommended Auxiliary Fields:**
+- **`observation.meta.joint_positions`**: Absolute positions for all articulated joints
   ```
   [joint_1, joint_2, ..., joint_n]
   ```
@@ -207,7 +216,7 @@ observation.state: [j1, j2, j3, j4, j5, j6, j7, gripper_pos]
 
 *Describe how you achieved proper data synchronization across different sensors, cameras, and robotic systems during data collection. This is crucial for ensuring temporal alignment of all modalities in your dataset.*
 
-**Example:** *We collect joint kinematics from our Franka Research 3 and RGB-D frames from Intel RealSense D435 cameras, all running in ROS 2 Galactic on the same workstation clocked with ROS Time. Both drivers stamp their outgoing messages’ header.stamp fields with the shared system clock, and we record /joint_states, /camera/*/image_raw, and /camera/*/camera_info in a single rosbag2 session. During export to LeRobot, each data point’s ROS header.stamp is written verbatim into the timestamp attribute. Offline checks show inter-sensor skew stays below ±2 ms across a 2-minute capture.*
+**Example:** *We collect joint kinematics from our Franka Research 3 and RGB-D frames from Intel RealSense D435 cameras, all running in ROS 2 Galactic on the same workstation clocked with ROS Time. Both drivers stamp their outgoing messages’ header.stamp fields with the shared system clock, and we record /joint_states, /camera/*/image_raw, and /camera/*/camera_info in a single rosbag2 session. During export to LeRobot, each data point’s ROS header.stamp is written verbatim into the `observation.meta.host_stamp_ns` feature (`int64`, Unix-epoch nanoseconds). Offline checks show inter-sensor skew stays below ±2 ms across a 2-minute capture.*
 
 ---
 

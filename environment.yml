@@ -1,0 +1,13 @@
+name: open-h-embodiment
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - ffmpeg
+  - pip
+  - pip:
+      - lerobot[dataset]==0.6.0
+      - tyro
+      - h5py
+      - zarr
+      - opencv-python-headless

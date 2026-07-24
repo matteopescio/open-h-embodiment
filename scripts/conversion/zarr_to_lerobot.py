@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-A script to convert robotics data from a single Zarr store into the LeRobot format (v2.1).
+A script to convert robotics data from a single Zarr store into the LeRobot format (v3.0).
 
 This script is designed to process a single Zarr store that contains an entire
 dataset, with episode boundaries defined by an `episode_ends` array. It extracts
@@ -40,17 +40,15 @@ Dependencies:
 - tqdm
 """
 
-import os
 import shutil
 from pathlib import Path
 
-import zarr
+import numpy as np
 import tqdm
 import tyro
-import numpy as np
-
+import zarr
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.constants import HF_LEROBOT_HOME
+from lerobot.utils.constants import HF_LEROBOT_HOME
 
 
 def convert_data_to_lerobot(data_path: Path, repo_id: str, *, push_to_hub: bool = False):
@@ -62,7 +60,7 @@ def convert_data_to_lerobot(data_path: Path, repo_id: str, *, push_to_hub: bool 
         repo_id: The repository ID for the dataset on the Hugging Face Hub.
         push_to_hub: Whether to push the dataset to the Hub after conversion.
     """
-    final_output_path = os.path.join(HF_LEROBOT_HOME, repo_id)
+    final_output_path = HF_LEROBOT_HOME / repo_id
     if final_output_path.exists():
         print(f"Removing existing dataset at {final_output_path}")
         shutil.rmtree(final_output_path)
@@ -74,12 +72,12 @@ def convert_data_to_lerobot(data_path: Path, repo_id: str, *, push_to_hub: bool 
         robot_type="panda",
         fps=30,
         features={
-            "observation.image": {
+            "observation.images.room": {
                 "dtype": "video",
                 "shape": (224, 224, 3),
                 "names": ["height", "width", "channel"],
             },
-            "observation.wrist_image": {
+            "observation.images.wrist": {
                 "dtype": "video",
                 "shape": (224, 224, 3),
                 "names": ["height", "width", "channel"],
@@ -93,6 +91,11 @@ def convert_data_to_lerobot(data_path: Path, repo_id: str, *, push_to_hub: bool 
                 "dtype": "float32",
                 "shape": (6,),
                 "names": ["x", "y", "z", "roll", "pitch", "yaw"],
+            },
+            "observation.meta.host_stamp_ns": {
+                "dtype": "int64",
+                "shape": (1,),
+                "names": ["ns"],
             },
         },
         image_writer_processes=16,
@@ -127,13 +130,18 @@ def convert_data_to_lerobot(data_path: Path, repo_id: str, *, push_to_hub: bool 
             # Add each frame from the current episode slice to the dataset buffer.
             for step_idx in range(start_idx, end_idx):
                 frame_data = {
-                    "observation.image": root_zarr["observations/rgb"][step_idx][0],
-                    "observation.wrist_image": root_zarr["observations/rgb"][step_idx][1],
+                    "observation.images.room": root_zarr["observations/rgb"][step_idx][0],
+                    "observation.images.wrist": root_zarr["observations/rgb"][step_idx][1],
                     "observation.state": root_zarr["abs_joint_pos"][step_idx],
                     "action": root_zarr["action"][step_idx],
+                    # Original acquisition clock, passed through as nanoseconds.
+                    "observation.meta.host_stamp_ns": np.array(
+                        [round(float(root_zarr["timestep"][step_idx]) * 1e9)], dtype=np.int64
+                    ),
+                    "task": task_description,
                 }
-                timestamp = root_zarr["timestep"][step_idx]
-                dataset.add_frame(frame_data, task=task_description, timestamp=timestamp)
+                # The canonical timestamp column is computed as frame_index / fps in v3.0.
+                dataset.add_frame(frame_data)
 
             # Save the buffered frames as a completed episode.
             dataset.save_episode()
@@ -143,7 +151,13 @@ def convert_data_to_lerobot(data_path: Path, repo_id: str, *, push_to_hub: bool 
 
         except Exception as e:
             print(f"Error processing episode {episode_idx}: {e}")
+            episode_index = dataset.writer.episode_buffer["episode_index"]
             dataset.clear_episode_buffer()
+            # Also remove leftover temp video frames so they don't leak into the next episode.
+            dataset.writer.cleanup_interrupted_episode(episode_index)
+
+    # Finalize the dataset so all buffered metadata and videos are written to disk.
+    dataset.finalize()
 
     print(f"Dataset conversion complete. Saved to {final_output_path}")
 

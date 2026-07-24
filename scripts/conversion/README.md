@@ -1,13 +1,21 @@
 # Data Conversion Scripts
 
-This directory contains scripts to convert robotics datasets from various formats to the LeRobot v2.1 format.
+This directory contains scripts to convert robotics datasets from various formats to the LeRobot v3.0 format.
+
+## Migrating Existing v2.1 Datasets
+
+If you have an existing dataset in the older v2.1 format, convert it with the utility shipped in LeRobot 0.6.0:
+
+```bash
+python -m lerobot.scripts.convert_dataset_v21_to_v30 --repo-id=<user/dataset>
+```
 
 ## Available Conversion Scripts
 
 ### `hdf5_to_lerobot.py`
 Converts datasets from HDF5 format to LeRobot format. Designed for datasets where each HDF5 file represents a single episode with the structure:
 - `/data/demo_0/action` - Actions taken at each step
-- `/data/demo_0/observations/rgb` - RGB image observations  
+- `/data/demo_0/observations/rgb` - Room and wrist RGB images shaped `(steps, 2, height, width, channels)`, ordered `[room, wrist]`
 - `/data/demo_0/abs_joint_pos` - Absolute joint positions
 - `/data/demo_0/timestep` - Timestamps for each data point
 
@@ -42,13 +50,7 @@ These parameters control parallel video encoding:
 - `image_writer_threads=15-20` (balance between throughput and memory usage)
 
 #### `tolerance_s`
-Time tolerance for data synchronization between different sensors (default: 0.1 seconds). Adjust based on your system's timing precision requirements.
-
-#### `batch_encoding_size` (Advanced)
-Controls how many episodes are batched together before video encoding:
-- **Benefits**: Further performance improvement (~8% faster)
-- **Caveat**: Episodes in incomplete batches remain as individual images rather than MP4 videos
-- **Recommendation**: Use only for large datasets where batch size divides evenly into total episode count
+Time tolerance for data synchronization between different sensors (default: 1e-4 seconds). Adjust based on your system's timing precision requirements.
 
 ### Optimal Configuration Example
 
@@ -63,6 +65,5 @@ dataset = LeRobotDataset.create(
     image_writer_processes=16,
     image_writer_threads=20,
     tolerance_s=0.1,
-    # batch_encoding_size=12,  # Use with caution - see notes above
 )
 ```

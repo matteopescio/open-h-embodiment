@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-A script to convert DVRK (da Vinci Research Kit) robotics data into the LeRobot format (v2.1).
+A script to convert DVRK (da Vinci Research Kit) robotics data into the LeRobot format (v3.0).
 
 This script processes DVRK surgical robot datasets organized in directory structures
 with CSV kinematics data and multiple camera views. It handles both perfect and
@@ -17,7 +17,7 @@ The script expects a directory structure organized by tissue and subtasks:
 │   │   ├── episode_001/                # Individual episode
 │   │   │   ├── left_img_dir/           # Left endoscope images
 │   │   │   │   └── frame000000_left.jpg
-│   │   │   ├── right_img_dir/          # Right endoscope images  
+│   │   │   ├── right_img_dir/          # Right endoscope images
 │   │   │   │   └── frame000000_right.jpg
 │   │   │   ├── endo_psm1/              # PSM1 wrist camera
 │   │   │   │   └── frame000000_psm1.jpg
@@ -44,26 +44,25 @@ To also push to the Hugging Face Hub:
 
 Dependencies:
 -------------
-- lerobot v0.3.3
+- lerobot v0.6.0
 - tyro
 - pandas
 - PIL
 - numpy
 """
 
+import os
 import shutil
+import time
 from pathlib import Path
 
-import tyro
 import numpy as np
-import os
 import pandas as pd
-from PIL import Image
-import time
+import tyro
+from lerobot.datasets.io_utils import write_info
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.constants import HF_LEROBOT_HOME
-
-from lerobot.datasets.utils import write_info
+from lerobot.utils.constants import HF_LEROBOT_HOME
+from PIL import Image
 
 states_name = [
     "psm1_pose.position.x",
@@ -149,24 +148,23 @@ def process_episode(dataset, episode_path, states_name, actions_name, subtask_pr
     # print(left_images.shape, right_images.shape, psm1_images.shape, psm2_images.shape)
     num_frames = min(len(df), left_images.shape[0])
 
-    # Read kinematics data and convert to structured array with headers
-    kinematics_data = np.array(
-        [tuple(row) for row in df.to_numpy()],
-        dtype=[(col, df[col].dtype.str) for col in df.columns],
-    )
-    # print(kinematics_data[0])
+    # Read kinematics data column-wise so each column keeps its own dtype.
+    states_data = df[states_name].to_numpy(dtype=np.float32)
+    actions_data = df[actions_name].to_numpy(dtype=np.float32)
+    host_stamps = df["timestamp"].to_numpy(dtype=np.int64)
 
     for i in range(num_frames):
         frame = {
-            "observation.state": np.hstack(
-                [kinematics_data[n][i] for n in states_name]
-            ).astype(np.float32),
-            "action": np.hstack([kinematics_data[n][i] for n in actions_name]).astype(
-                np.float32
-            ),
+            "observation.state": states_data[i],
+            "action": actions_data[i],
             "instruction.text": subtask_prompt,
             "observation.meta.tool.psm1": "Large Needle Driver",
             "observation.meta.tool.psm2": "Debakey Forceps",
+            # Original acquisition clock, passed through as nanoseconds.
+            "observation.meta.host_stamp_ns": np.array(
+                [host_stamps[i]], dtype=np.int64
+            ),
+            "task": subtask_prompt,
         }
 
         for cam_name, images in [
@@ -177,8 +175,7 @@ def process_episode(dataset, episode_path, states_name, actions_name, subtask_pr
         ]:
             if images.size > 0:
                 frame[f"observation.images.{cam_name}"] = images[i]
-        timestamp_sec = kinematics_data["timestamp"][i] * 1e-9  ## turn nano sec to sec
-        dataset.add_frame(frame, task=subtask_prompt, timestamp=timestamp_sec)
+        dataset.add_frame(frame)
 
     return dataset
 
@@ -194,9 +191,9 @@ def convert_data_to_lerobot(
         repo_id: The repository ID for the dataset on the Hugging Face Hub.
         push_to_hub: Whether to push the dataset to the Hub after conversion.
     """
-    final_output_path = os.path.join(HF_LEROBOT_HOME, repo_id)
+    final_output_path = HF_LEROBOT_HOME / repo_id
     print(final_output_path)
-    if os.path.exists(final_output_path):
+    if final_output_path.exists():
         print(f"Removing existing dataset at {final_output_path}")
         shutil.rmtree(final_output_path)
 
@@ -247,6 +244,11 @@ def convert_data_to_lerobot(
                 "shape": (1,),
                 "names": ["value"],
             },
+            "observation.meta.host_stamp_ns": {
+                "dtype": "int64",
+                "shape": (1,),
+                "names": ["ns"],
+            },
             "instruction.text": {
                 "dtype": "string",
                 "shape": (1,),
@@ -256,7 +258,6 @@ def convert_data_to_lerobot(
         image_writer_processes=16,
         image_writer_threads=20,
         tolerance_s=0.1,
-        batch_encoding_size=12,
     )
     # measure time taken to complete the process
     start_time = time.time()
@@ -268,19 +269,24 @@ def convert_data_to_lerobot(
         print(f"Warning: {tissue_dir} does not exist.")
         exit()
     ## process all demos (perfect and recovery)
-    for subtask_name in os.listdir(tissue_dir):
+    # Sort for deterministic episode order, with perfect subtasks before
+    # recovery ones so the count-derived split ranges below stay correct.
+    for subtask_name in sorted(
+        os.listdir(tissue_dir), key=lambda name: (name.endswith("recovery"), name)
+    ):
         try:
             subtask_dir = os.path.join(tissue_dir, subtask_name)
             if not os.path.isdir(subtask_dir):
                 continue
+            episode_dir = subtask_dir  # fallback for the error message below
 
             subtask_prompt = " ".join(subtask_name.split("_")[1:])
             is_recovery = subtask_prompt.endswith("recovery")
-            
+
             if is_recovery:
                 subtask_prompt = subtask_prompt[:-9]  # Remove " recovery" suffix
-                
-            for episode_name in os.listdir(subtask_dir):
+
+            for episode_name in sorted(os.listdir(subtask_dir)):
                 episode_dir = os.path.join(subtask_dir, episode_name)
                 if not os.path.isdir(episode_dir):
                     continue
@@ -295,10 +301,16 @@ def convert_data_to_lerobot(
                     perfect_demo_count += 1
         except Exception as e:
             print(f"Error processing episode {episode_dir}: {e}")
+            episode_index = dataset.writer.episode_buffer["episode_index"]
             dataset.clear_episode_buffer()
+            # Also remove leftover temp video frames so they don't leak into the next episode.
+            dataset.writer.cleanup_interrupted_episode(episode_index)
         print(
             f"subtask {subtask_name} processed successful, time taken: {time.time() - start_time}"
         )
+    # Finalize the dataset so all buffered metadata and videos are written to disk.
+    dataset.finalize()
+
     print(f"perfect_demo_count: {perfect_demo_count}")
 
     print(f"recovery_demo_count: {recovery_demo_count}")
@@ -308,7 +320,7 @@ def convert_data_to_lerobot(
     val_count = int(0.1 * total_episode_count)
     # test_count = total_episode_count - train_count - val_count
     ## write split in meta
-    dataset.meta.info["splits"] = {
+    dataset.meta.info.splits = {
         "train": "0:{}".format(train_count),
         "val": "{}:{}".format(train_count, train_count + val_count),
         "test": "{}:{}".format(train_count + val_count, total_episode_count),
@@ -320,6 +332,11 @@ def convert_data_to_lerobot(
 
     print("Custom split configuration saved!")
     print(f"suturing processed successful, time taken: {time.time() - start_time}")
+
+    if push_to_hub:
+        print(f"Pushing dataset to Hugging Face Hub: {repo_id}")
+        dataset.push_to_hub()
+        print("Push complete.")
 
 
 def main(

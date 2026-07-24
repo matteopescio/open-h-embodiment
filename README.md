@@ -2,98 +2,98 @@
 
 <div align="center">
 
-# Open-H Initiative: Data Contribution How-To Guide
+# Open-H Initiative v2: Data Contribution How-To Guide
 
+[![Website](https://img.shields.io/badge/Open--H-Website-0A66C2?style=for-the-badge&logo=googlechrome&logoColor=white)](https://www.open-h.org/)
 [![Discord](https://img.shields.io/badge/Discord-Join%20our%20community-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/YZEhNcTHtc)
-[![LeRobot](https://img.shields.io/badge/LeRobot-v0.3.3-FF6B6B?style=for-the-badge)](https://docs.phospho.ai/learn/lerobot-dataset)
+[![Dataset Explorer](https://img.shields.io/badge/Dataset-Explore%20the%20data-FF6B6B?style=for-the-badge)](https://open-h.github.io/open-h-embodiment/)
+[![arXiv](https://img.shields.io/badge/arXiv-2604.21017-B31B1B?style=for-the-badge&logo=arxiv&logoColor=white)](https://arxiv.org/abs/2604.21017)
 [![License](https://img.shields.io/badge/License-CC%20BY%204.0-4CAF50?style=for-the-badge)](https://creativecommons.org/licenses/by/4.0/)
 [![Hugging Face Dataset](https://img.shields.io/static/v1?label=Hugging%20Face&message=Dataset%20live&color=yellow&style=for-the-badge&logo=huggingface)](https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-Open-H-Embodiment)
 
 </div>
 
 > [!IMPORTANT]
-> **Open-H-Embodiment v1 is now live on Hugging Face:**  
+> **This is Open-H-Embodiment v2.**
+>
+> Open-H-Embodiment v1 is live on Hugging Face:  
 > https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-Open-H-Embodiment
 >
-> This first public release provides the initial Open-H-Embodiment dataset in **LeRobot v2.1** format for healthcare robotics research and development.
+> For v2, the project has migrated to the newer LeRobot dataset format (LeRobot v0.6.0, dataset format v3.0). The v1 codebase remains available under the `open-h-v1` tag.
+>
+> **Want to join the v2 effort?** See [How to Participate](#how-to-participate).
 
 This guide provides a comprehensive overview of how to contribute meaningful data to the Open-H initiative, ensuring consistency and quality across all contributions.
 
 ## 📦 Dataset Release
 
-**Open-H-Embodiment v1 is now available on Hugging Face:**  
+**Open-H-Embodiment v1 is available on Hugging Face:**  
 https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-Open-H-Embodiment
 
-This release marks the first public version of the Open-H-Embodiment dataset, a community-driven collection of paired video and kinematics data for healthcare robotics.
-
-The Hugging Face dataset page is the primary location for:
-- accessing released dataset assets,
-- reviewing dataset metadata and documentation,
-- tracking public dataset versions.
-
-This GitHub repository remains the primary location for:
-- contribution instructions,
-- formatting requirements,
-- conversion scripts,
-- synchronization tools,
-- validation utilities.
+The v1 release marks the first public version of the Open-H-Embodiment dataset, a community-driven collection of paired video and kinematics data for healthcare robotics. *This repository now hosts the **v2 effort**.*
 
 ## How to Participate
 
+Visit the [Open-H website](https://www.open-h.org/) for a general overview of the initiative.
+
+> [!NOTE]
+> **Clinicians** interested in contributing through annotation should go through the [clinician participation section](https://www.open-h.org/#participate) of the Open-H website. The data contribution workflow below is intended for teams contributing datasets.
+
 1. **Review the Request for Proposals**  
-   Read the [Open-H RFP](assets/open-h-rfp.pdf) to confirm your proposed dataset aligns with the initiative. The RFP outlines the technical scope, eligibility, and evaluation criteria for the one-page submission reviewed by the Open-H-Embodiment steering committee.
+   Read the [Open-H RFP](assets/open-h-rfp.pdf) to confirm your proposed dataset aligns with the initiative. The RFP outlines the technical scope, eligibility, and evaluation criteria for proposal submissions reviewed by the Open-H-Embodiment steering committee.
 
-2. **Prepare and Submit Your Proposal**  
-   Develop a concise one-page summary describing the dataset, collection methodology, and specific tasks. Follow the instructions in the RFP and submit the document for steering committee review.
+2. **Complete the Onboarding Form**  
+   Develop your proposal describing the dataset, collection methodology, and specific tasks, following the instructions in the RFP. Submit it through the [collaborator onboarding form](https://docs.google.com/forms/d/1mM5NfEqXTkXVETIbmFzH_1n4l25z6prZt61LtUwX4Us/viewform) to be considered as a collaborator in the v2 effort.
 
-3. **Upload Your Approved Dataset**  
-   After approval, upload your data to the [Open-H shared drive](https://drive.google.com/drive/folders/1fenrjbsSYaeLz-U_LD7K063oT2el8ueX?usp=sharing).
-
-   A dedicated folder will be provisioned for your institution (and each participating lab, if applicable) to keep contributions organized.
-
-4. **Register Dataset Details**  
-   Record the dataset metadata, documentation links, and key contacts in the [dataset tracking sheet](https://docs.google.com/spreadsheets/d/1vG9778S6G-Embum9ZjK_NlZGR0KFa2VkMnGDnZB-Exk/edit?usp=sharing).
-
-   This ensures the community can discover and integrate your contribution.
-
-5. **Inclusion in Future Releases**  
-   Approved and properly formatted contributions may be incorporated into future public releases of Open-H-Embodiment on Hugging Face, subject to review for quality, documentation completeness, and licensing compliance.
+Once your proposal is approved, the Open-H team will reach out with the next steps to onboard you as a collaborator.
 
 ## 🚀 LeRobot Installation
 
 Before using the conversion scripts and following this dataset preparation guide, install the required version of LeRobot:
 
-### Required Version: LeRobot v0.3.3
+### Required Versions: Python 3.12, LeRobot v0.6.0
+
+Using conda (recommended — pins Python 3.12 and all conversion-script dependencies via [environment.yml](environment.yml)):
 
 ```bash
-pip install lerobot==0.3.3
+conda env create -f environment.yml
+conda activate open-h-embodiment
 ```
+
+Or with pip:
+
+```bash
+pip install "lerobot[dataset]==0.6.0"
+```
+
+*Note: LeRobot 0.6.0 requires Python >= 3.12, and the dataset tooling is provided by the `[dataset]` extra.*
 
 ### Version Clarification
 
-- **LeRobot Package Version**: v0.3.3 (the Python library)
-- **LeRobot Dataset Format**: v2.1 (the data structure specification)
+- **LeRobot Package Version**: v0.6.0 (the Python library)
+- **LeRobot Dataset Format**: v3.0 (the data structure specification)
 
-These are separate versioning schemes. This guide uses LeRobot package v0.3.3 which supports the LeRobot dataset format v2.1.
+These are separate versioning schemes. This guide uses LeRobot package v0.6.0 which supports the LeRobot dataset format v3.0.
 
 ## 📊 Data Formatting: Overview
 
-To maintain uniformity and compatibility within the project, all data should adhere to the LeRobot dataset v2.1 format.
+To maintain uniformity and compatibility within the project, all data should adhere to the LeRobot dataset v3.0 format.
 
 | Aspect | Guideline |
 | :---- | :---- |
 | **Hz (Suggested)** | ≥ 20 Hz |
 | **Resolution (Suggested)** | ≥ 480p |
 | **Label Granularity (Suggested)** | Task-level |
-| **Storage Format** | [LeRobot dataset format](https://docs.phospho.ai/learn/lerobot-dataset) (v2.1) |
+| **Storage Format** | [LeRobot dataset format](https://huggingface.co/docs/lerobot/lerobot-dataset-v3) (v3.0) |
 
 ## 📋 Data Requirements
 
 For successful data integration and analysis, please ensure the following requirements are met:
 
-* **README.md**: Complete the [README.md](templates/dataset_template.md) template and include it in your LeRobot `./metadata` directory  
+* **README.md**: Complete the [README.md](templates/dataset_template.md) template and include it in your LeRobot dataset's `./meta` directory  
 * **Synchronization Guarantees**: Provide clear documentation regarding the synchronization methods used for your dataset. Include this documentation in your [README.md](templates/dataset_template.md).  
-* **Timestamps**: Include precise timestamps for all data points to facilitate post-processing.
+* **Timestamps**: The LeRobot v3.0 `timestamp` column is always computed as `frame_index / fps`, so resample/align your captures to the camera stream at a fixed rate before conversion (see the synchronization section below). Preserve the raw acquisition clock as a pass-through feature `observation.meta.host_stamp_ns` (`int64`, shape `(1,)`, Unix-epoch nanoseconds); if streams carry distinct clocks, add per-sensor variants such as `observation.meta.em_stamp_ns`.
+* **Camera Intrinsics (optical cameras)**: where you provide a calibrated RGB camera, include its intrinsics as a static calibration file at `meta/calibration/camera_intrinsics.json` (needed for depth, 3D reconstruction, and stereo). See [Camera Intrinsics](#camera-intrinsics).
 
 ## 🔧 Additional Fields
 
@@ -102,7 +102,7 @@ For successful data integration and analysis, please ensure the following requir
 The splits field is usually reserved for standard "train", "test", and "validation" splits. This information can be encoded by dataset authors in the `info.json` file, within the `splits` key:
 
 ```json
-# ./metadata/info.json
+# ./meta/info.json
 {
    ...
   "splits": {
@@ -117,7 +117,7 @@ The splits field is usually reserved for standard "train", "test", and "validati
 However, to accommodate recovery and failure examples, the "recovery" and "failure" keys should be added as needed. This will allow downstream users to easily identify these special examples:
 
 ```json
-# ./metadata/info.json
+# ./meta/info.json
 {
    ...
   "splits": {
@@ -277,6 +277,27 @@ ultrasound_dataset = LeRobotDataset.create(
 
 [See additional ultrasound dataset configuration example](scripts/conversion/hdf5_to_lerobot.py)
 
+#### Camera Intrinsics
+
+Including camera intrinsics is encouraged wherever you provide a calibrated optical (RGB) camera: they are needed for depth, 3D reconstruction, and stereo triangulation.
+
+Store intrinsics as a calibration file at **`meta/calibration/camera_intrinsics.json`**. If the instrinsics are not static, store them as a per-frame `observation.meta.<camera_name>.intrinsics` feature. This keeps a clean split: static, dataset-level calibration lives as a file under `meta/calibration/`, while per-frame signals stay as `observation.meta.*` features. Key the static file by camera feature name so a multi-camera rig records each stream:
+
+```json
+{
+  "observation.images.room": {
+    "model": "pinhole",
+    "width": 224,
+    "height": 224,
+    "fx": 130.0, "fy": 130.0, "cx": 112.0, "cy": 112.0,
+    "distortion_model": "opencv_radtan",
+    "distortion_coeffs": [0.0, 0.0, 0.0, 0.0, 0.0]
+  }
+}
+```
+
+`fx`, `fy`, `cx`, `cy` are the OpenCV pinhole parameters in pixels; `distortion_model` names the model (for example `opencv_radtan` with coefficients `[k1, k2, p1, p2, k3]`, or `none` with an empty list for already-undistorted frames). A reference writer, `write_camera_intrinsics()`, is provided in [hdf5_to_lerobot.py](scripts/conversion/hdf5_to_lerobot.py); call it after `dataset.finalize()`.
+
 ## ✅ Best Practices
 
 Following these best practices will help ensure the highest quality of contributed data:
@@ -369,7 +390,7 @@ For large datasets, conversion performance can be significantly improved using p
 
 ## 📚 Additional Resources
 
-- [LeRobot Documentation](https://docs.phospho.ai/learn/lerobot-dataset)
+- [LeRobot Documentation](https://huggingface.co/docs/lerobot/lerobot-dataset-v3)
 - [Dataset Template](templates/dataset_template.md)
 - [Conversion Scripts](scripts/conversion/)
 - [Synchronization Scripts](scripts/synchronization/)

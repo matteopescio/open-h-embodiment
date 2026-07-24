@@ -3,11 +3,12 @@
 import glob
 import os
 from pathlib import Path
-import h5py
-import tqdm
 
+import h5py
+import numpy as np
+import tqdm
+from lerobot.datasets.io_utils import write_info
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.datasets.utils import write_info
 
 
 def add_episodes_from_dir(dataset, data_dir: Path, num_expected: int, task_description: str):
@@ -24,13 +25,18 @@ def add_episodes_from_dir(dataset, data_dir: Path, num_expected: int, task_descr
 
             for step in range(num_steps):
                 frame_data = {
-                    "image": f[f"{root_name}/observations/rgb"][step],
-                    "wrist_image": f[f"{root_name}/observations/rgb"][step],
-                    "state": f[f"{root_name}/abs_joint_pos"][step],
+                    "observation.images.room": f[f"{root_name}/observations/rgb"][step, 0],
+                    "observation.images.wrist": f[f"{root_name}/observations/rgb"][step, 1],
+                    "observation.state": f[f"{root_name}/abs_joint_pos"][step],
                     "action": f[f"{root_name}/action"][step],
+                    # Original acquisition clock, passed through as nanoseconds.
+                    "observation.meta.host_stamp_ns": np.array(
+                        [round(float(f[f"{root_name}/timestep"][step]) * 1e9)], dtype=np.int64
+                    ),
+                    "task": task_description,
                 }
-                timestamp = f[f"{root_name}/timestep"][step]
-                dataset.add_frame(frame_data, task=task_description, timestamp=timestamp)
+                # The canonical timestamp column is computed as frame_index / fps in v3.0.
+                dataset.add_frame(frame_data)
 
         dataset.save_episode()  # finalize this episode
 
@@ -44,10 +50,11 @@ def main():
         use_videos=True,
         fps=30,
         features={
-            "image": {"dtype": "video", "shape": (224, 224, 3), "names": ["h", "w", "c"]},
-            "wrist_image": {"dtype": "video", "shape": (224, 224, 3), "names": ["h", "w", "c"]},
-            "state": {"dtype": "float32", "shape": (7,), "names": [f"joint_{i}" for i in range(1, 8)]},
+            "observation.images.room": {"dtype": "video", "shape": (224, 224, 3), "names": ["h", "w", "c"]},
+            "observation.images.wrist": {"dtype": "video", "shape": (224, 224, 3), "names": ["h", "w", "c"]},
+            "observation.state": {"dtype": "float32", "shape": (7,), "names": [f"joint_{i}" for i in range(1, 8)]},
             "action": {"dtype": "float32", "shape": (6,), "names": ["x", "y", "z", "roll", "pitch", "yaw"]},
+            "observation.meta.host_stamp_ns": {"dtype": "int64", "shape": (1,), "names": ["ns"]},
         },
         robot_type="panda",
         image_writer_processes=16,
@@ -58,22 +65,37 @@ def main():
     # -------------------------------
     # 2. Load main training episodes
     # -------------------------------
-    add_episodes_from_dir(dataset, Path("data/main"), num_expected=125, task_description="normal task")
+    add_episodes_from_dir(
+        dataset, Path("data/main"), num_expected=125, task_description="Pass the needle through the tissue phantom"
+    )
 
     # -------------------------------
     # 3. Load recovery episodes
     # -------------------------------
-    add_episodes_from_dir(dataset, Path("data/main_recovery"), num_expected=15, task_description="recovery")
+    add_episodes_from_dir(
+        dataset,
+        Path("data/main_recovery"),
+        num_expected=15,
+        task_description="Recover a dropped needle and complete the pass through the tissue phantom",
+    )
 
     # -------------------------------
     # 4. Load failure episodes
     # -------------------------------
-    add_episodes_from_dir(dataset, Path("data/failure"), num_expected=10, task_description="failure")
+    add_episodes_from_dir(
+        dataset,
+        Path("data/failure"),
+        num_expected=10,
+        task_description="Attempt the needle pass through the tissue phantom (unsuccessful)",
+    )
+
+    # Finalize the dataset so all buffered metadata and videos are written to disk.
+    dataset.finalize()
 
     # --------------------------------------
     # 5. Write custom splits into info.json
     # --------------------------------------
-    dataset.meta.info["splits"] = {
+    dataset.meta.info.splits = {
         "train": "0:85",
         "val": "85:100",
         "test": "100:125",

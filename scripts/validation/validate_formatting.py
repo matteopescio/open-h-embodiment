@@ -3,7 +3,7 @@
 Open-H Dataset Validation Script
 
 This script validates LeRobot datasets for compliance with:
-1. LeRobot dataset format v2.1 specifications
+1. LeRobot dataset format v3.0 specifications
 2. Open-H data collection initiative requirements and recommendations
 
 This is a LOCAL validation tool designed to be run as a final check before
@@ -24,15 +24,14 @@ The script performs comprehensive checks on:
 - Recovery/failure example handling
 """
 
+import argparse
 import json
 import os
 import sys
-from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any
-import warnings
-import argparse
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -40,13 +39,12 @@ import numpy as np
 os.environ["OPENCV_FFMPEG_LOGLEVEL"] = "-8"
 os.environ["FFMPEG_HIDE_BANNER"] = "1"
 
-import cv2
 from importlib.metadata import version as get_version
 
+import cv2
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
-from lerobot.constants import HF_LEROBOT_HOME
 
-REQUIRED_LEROBOT_VERSION = "0.3.3"
+REQUIRED_LEROBOT_VERSION = "0.6.0"
 _installed_version = get_version("lerobot")
 if _installed_version != REQUIRED_LEROBOT_VERSION:
     raise ImportError(
@@ -105,14 +103,15 @@ class ValidationReport:
 class OpenHDatasetValidator:
     """Validator for Open-H LeRobot datasets"""
 
-    # Required LeRobot v2.1 structure
+    # Required LeRobot v3.0 structure
     REQUIRED_DIRS = ["videos", "meta"]
     REQUIRED_METADATA_FILES = [
         "info.json",
-        "episodes_stats.jsonl",
-        "tasks.jsonl",
-        "episodes.jsonl",
+        "stats.json",
+        "tasks.parquet",
     ]
+    # v3.0 metadata directories containing chunked parquet files
+    REQUIRED_METADATA_DIRS = ["episodes"]
 
     # Required features based on Open-H guidelines
     REQUIRED_FEATURES = ["action", "observation.state"]
@@ -187,7 +186,7 @@ class OpenHDatasetValidator:
             print(f"    Details: {result.details}")
 
     def validate_directory_structure(self):
-        """Validate LeRobot v2.1 directory structure"""
+        """Validate LeRobot v3.0 directory structure"""
         category = "Directory Structure"
 
         # Check required directories
@@ -225,18 +224,18 @@ class OpenHDatasetValidator:
                 # Check for parquet files in chunks
                 parquet_files = []
                 for chunk_dir in chunk_dirs:
-                    parquet_files.extend(list(chunk_dir.glob("episode_*.parquet")))
+                    parquet_files.extend(list(chunk_dir.glob("file-*.parquet")))
                 if not parquet_files:
                     self.add_result(
                         ValidationLevel.ERROR,
                         category,
-                        "No episode parquet files found in chunk directories (expected format: episode_000000.parquet)",
+                        "No data parquet files found in chunk directories (expected format: file-000.parquet)",
                     )
                 else:
                     self.add_result(
                         ValidationLevel.SUCCESS,
                         category,
-                        f"Found {len(parquet_files)} episode parquet files in {len(chunk_dirs)} chunk(s)",
+                        f"Found {len(parquet_files)} data parquet files in {len(chunk_dirs)} chunk(s)",
                     )
 
     def validate_metadata_files(self):
@@ -264,6 +263,29 @@ class OpenHDatasetValidator:
                     ValidationLevel.SUCCESS,
                     category,
                     f"Metadata file '{file_name}' exists",
+                )
+
+        # Check required metadata directories (chunked parquet files in v3.0)
+        for dir_name in self.REQUIRED_METADATA_DIRS:
+            dir_path = metadata_dir / dir_name
+            if not dir_path.is_dir():
+                self.add_result(
+                    ValidationLevel.ERROR,
+                    category,
+                    f"Required metadata directory '{dir_name}' not found",
+                )
+            elif not list(dir_path.glob("chunk-*/file-*.parquet")):
+                self.add_result(
+                    ValidationLevel.ERROR,
+                    category,
+                    f"No parquet files found in 'meta/{dir_name}' "
+                    "(expected format: meta/episodes/chunk-000/file-000.parquet)",
+                )
+            else:
+                self.add_result(
+                    ValidationLevel.SUCCESS,
+                    category,
+                    f"Metadata directory '{dir_name}' exists",
                 )
 
         # Check for Open-H required README.md
@@ -529,24 +551,44 @@ class OpenHDatasetValidator:
             )
 
     def validate_episodes(self):
-        """Validate episodes.jsonl file"""
+        """Validate episodes metadata parquet files"""
         category = "Episodes"
-        episodes_path = self.dataset_path / "meta" / "episodes.jsonl"
+        episodes_dir = self.dataset_path / "meta" / "episodes"
 
-        if not episodes_path.exists():
+        if not episodes_dir.exists():
             return
 
         try:
-            episodes = []
-            with open(episodes_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    episodes.append(json.loads(line))
+            import pandas as pd
+        except ImportError:
+            self.add_result(
+                ValidationLevel.INFO,
+                category,
+                "pandas not installed — skipping episodes validation",
+                "Install with: pip install pandas pyarrow",
+            )
+            return
+
+        try:
+            episode_files = sorted(episodes_dir.glob("chunk-*/file-*.parquet"))
+            if not episode_files:
+                self.add_result(
+                    ValidationLevel.ERROR,
+                    category,
+                    "No episode parquet files found in meta/episodes",
+                )
+                return
+
+            episodes = pd.concat(
+                [pd.read_parquet(f, engine="pyarrow") for f in episode_files],
+                ignore_index=True,
+            ).to_dict("records")
 
             if not episodes:
                 self.add_result(
                     ValidationLevel.ERROR,
                     category,
-                    "No episodes found in episodes.jsonl",
+                    "No episodes found in meta/episodes parquet files",
                 )
                 return
 
@@ -559,7 +601,7 @@ class OpenHDatasetValidator:
             for ep in episodes:
                 if "tasks" in ep:
                     # Handle tasks as a list
-                    if isinstance(ep["tasks"], list):
+                    if isinstance(ep["tasks"], (list, np.ndarray)):
                         tasks.update(ep["tasks"])
                     else:
                         tasks.add(ep["tasks"])
@@ -590,11 +632,13 @@ class OpenHDatasetValidator:
                     )
         except Exception as e:
             self.add_result(
-                ValidationLevel.ERROR, category, f"Error reading episodes.jsonl: {e}"
+                ValidationLevel.ERROR,
+                category,
+                f"Error reading meta/episodes parquet files: {e}",
             )
 
     def validate_timestamps(self):
-        """Validate timestamp column in episode parquet files.
+        """Validate timestamp column in data parquet files.
 
         Checks for issues known to cause training/inference failures in
         downstream models:
@@ -661,7 +705,7 @@ class OpenHDatasetValidator:
 
         parquet_files = []
         for chunk_dir in chunk_dirs:
-            parquet_files.extend(sorted(chunk_dir.glob("episode_*.parquet")))
+            parquet_files.extend(sorted(chunk_dir.glob("file-*.parquet")))
 
         if not parquet_files:
             return
@@ -701,174 +745,184 @@ class OpenHDatasetValidator:
                 episodes_with_errors += 1
                 continue
 
-            ts_series = df["timestamp"]
-            if not np.issubdtype(ts_series.dtype, np.number):
+            if not np.issubdtype(df["timestamp"].dtype, np.number):
                 self.add_result(
                     ValidationLevel.ERROR,
                     category,
-                    f"{pf.name}: timestamp column has non-numeric dtype ({ts_series.dtype})",
+                    f"{pf.name}: timestamp column has non-numeric dtype ({df['timestamp'].dtype})",
                 )
                 episodes_with_errors += 1
                 continue
 
-            ts = pd.to_numeric(ts_series, errors="coerce").to_numpy(dtype=np.float64)
-            non_finite_count = int(np.sum(~np.isfinite(ts)))
-            if non_finite_count > 0:
-                self.add_result(
-                    ValidationLevel.ERROR,
-                    category,
-                    f"{pf.name}: timestamp contains {non_finite_count} NaN/Inf value(s)",
-                )
-                episodes_with_errors += 1
-                continue
+            # v3.0: one parquet file holds multiple episodes — group frames by
+            # episode_index and run the per-episode checks on each group
+            if "episode_index" in df.columns:
+                episode_groups = [
+                    (f"episode_{int(ep_idx):06d}", ep_df)
+                    for ep_idx, ep_df in df.groupby("episode_index", sort=True)
+                ]
+            else:
+                episode_groups = [(pf.stem, df)]
 
-            episodes_checked += 1
-            n = len(ts)
-            ep_name = pf.stem
-            has_error = False
-            has_warning = False
-
-            if n < 2:
-                continue
-
-            # --- Check 1: Absolute Unix epoch timestamps ---
-            # float32 can only represent ~7 significant digits; Unix epoch
-            # values (~1.7e9) lose all sub-second precision, collapsing
-            # per-frame deltas to zero.
-            if ts[0] > 1e6:
-                issue_summary["epoch_timestamps"].append(ep_name)
-                is_float32 = df["timestamp"].dtype == np.float32
-                if is_float32:
+            for ep_name, ep_df in episode_groups:
+                ts_series = ep_df["timestamp"]
+                ts = pd.to_numeric(ts_series, errors="coerce").to_numpy(dtype=np.float64)
+                non_finite_count = int(np.sum(~np.isfinite(ts)))
+                if non_finite_count > 0:
                     self.add_result(
                         ValidationLevel.ERROR,
                         category,
-                        f"{ep_name}: timestamps are absolute Unix epoch values "
-                        f"(ts[0]={ts[0]:.1f}) stored as float32 — precision collapse "
-                        f"makes per-frame deltas invisible to downstream models",
-                        "Convert to relative timestamps (subtract episode start time) "
-                        "or store as float64",
+                        f"{ep_name}: timestamp contains {non_finite_count} NaN/Inf value(s)",
                     )
-                    has_error = True
-                else:
-                    self.add_result(
-                        ValidationLevel.WARNING,
-                        category,
-                        f"{ep_name}: timestamps appear to be absolute Unix epoch values "
-                        f"(ts[0]={ts[0]:.1f}) — downstream models expect relative timestamps "
-                        f"starting near 0",
-                        "Consider converting to relative timestamps (subtract episode start time)",
-                    )
-                    has_warning = True
-                    issue_summary["not_relative"].append(ep_name)
+                    episodes_with_errors += 1
+                    continue
 
-            # --- Check 2: Constant or near-constant timestamps ---
-            ts_min = float(np.min(ts))
-            ts_max = float(np.max(ts))
-            ts_range = ts_max - ts_min
-            expected_duration = (n - 1) / fps if fps else None
+                episodes_checked += 1
+                n = len(ts)
+                has_error = False
+                has_warning = False
 
-            if ts_range == 0:
-                issue_summary["constant_timestamps"].append(ep_name)
-                self.add_result(
-                    ValidationLevel.ERROR,
-                    category,
-                    f"{ep_name}: all {n} timestamps are identical ({ts[0]:.6f}) — "
-                    f"video frame selection will always return frame 0",
-                )
-                has_error = True
-            elif expected_duration and ts_range < expected_duration * 0.01:
-                issue_summary["constant_timestamps"].append(ep_name)
-                self.add_result(
-                    ValidationLevel.ERROR,
-                    category,
-                    f"{ep_name}: timestamp range ({ts_range:.2e}s) is negligible "
-                    f"compared to expected episode duration ({expected_duration:.2f}s at {fps} fps) "
-                    f"— effectively constant",
-                )
-                has_error = True
+                if n < 2:
+                    continue
 
-            # --- Check 3: Uniqueness ---
-            num_unique = len(np.unique(ts))
-            uniqueness_ratio = num_unique / n
-
-            if num_unique == 1 and n > 1:
-                pass  # already reported in constant check
-            elif uniqueness_ratio < 0.5:
-                issue_summary["low_uniqueness"].append(ep_name)
-                self.add_result(
-                    ValidationLevel.ERROR,
-                    category,
-                    f"{ep_name}: only {num_unique}/{n} unique timestamp values "
-                    f"({uniqueness_ratio:.1%}) — most frames share timestamps, "
-                    f"causing incorrect video frame lookups",
-                )
-                has_error = True
-            elif uniqueness_ratio < 1.0:
-                issue_summary["non_strictly_monotonic"].append(ep_name)
-                num_duplicates = n - num_unique
-                self.add_result(
-                    ValidationLevel.WARNING,
-                    category,
-                    f"{ep_name}: {num_duplicates} duplicate timestamp value(s) "
-                    f"({num_unique}/{n} unique, {uniqueness_ratio:.1%}) — "
-                    f"ideally each frame should have a distinct timestamp",
-                )
-                has_warning = True
-
-            # --- Check 4: Monotonicity ---
-            diffs = np.diff(ts)
-            num_decreasing = int(np.sum(diffs < 0))
-            if num_decreasing > 0:
-                issue_summary["non_monotonic"].append(ep_name)
-                first_decrease_idx = int(np.argmax(diffs < 0))
-                self.add_result(
-                    ValidationLevel.ERROR,
-                    category,
-                    f"{ep_name}: timestamps are NOT monotonically increasing — "
-                    f"{num_decreasing} decrease(s) found "
-                    f"(first at index {first_decrease_idx}: "
-                    f"{ts[first_decrease_idx]:.6f} -> {ts[first_decrease_idx+1]:.6f})",
-                )
-                has_error = True
-
-            # --- Check 5: Spacing relative to FPS ---
-            if fps and ts_range > 0 and num_unique > 1:
-                expected_spacing = 1.0 / fps
-                positive_diffs = diffs[diffs > 0]
-                if len(positive_diffs) > 0:
-                    mean_spacing = float(np.mean(positive_diffs))
-                    ratio = mean_spacing / expected_spacing
-                    if ratio > 5.0 or ratio < 0.1:
-                        issue_summary["bad_spacing"].append(ep_name)
+                # --- Check 1: Absolute Unix epoch timestamps ---
+                # float32 can only represent ~7 significant digits; Unix epoch
+                # values (~1.7e9) lose all sub-second precision, collapsing
+                # per-frame deltas to zero.
+                if ts[0] > 1e6:
+                    issue_summary["epoch_timestamps"].append(ep_name)
+                    is_float32 = ts_series.dtype == np.float32
+                    if is_float32:
+                        self.add_result(
+                            ValidationLevel.ERROR,
+                            category,
+                            f"{ep_name}: timestamps are absolute Unix epoch values "
+                            f"(ts[0]={ts[0]:.1f}) stored as float32 — precision collapse "
+                            f"makes per-frame deltas invisible to downstream models",
+                            "Convert to relative timestamps (subtract episode start time) "
+                            "or store as float64",
+                        )
+                        has_error = True
+                    else:
                         self.add_result(
                             ValidationLevel.WARNING,
                             category,
-                            f"{ep_name}: mean timestamp spacing ({mean_spacing:.4f}s) "
-                            f"deviates significantly from expected 1/{fps}={expected_spacing:.4f}s "
-                            f"(ratio: {ratio:.1f}x)",
-                            "This may indicate timestamps in wrong units or from a "
-                            "different clock source",
+                            f"{ep_name}: timestamps appear to be absolute Unix epoch values "
+                            f"(ts[0]={ts[0]:.1f}) — downstream models expect relative timestamps "
+                            f"starting near 0",
+                            "Consider converting to relative timestamps (subtract episode start time)",
                         )
                         has_warning = True
+                        issue_summary["not_relative"].append(ep_name)
 
-            # --- Check 6: Relative timestamps (should start near 0) ---
-            if 0 < ts[0] <= 1e6:
-                if ts[0] > 60.0:
-                    issue_summary["not_relative"].append(ep_name)
+                # --- Check 2: Constant or near-constant timestamps ---
+                ts_min = float(np.min(ts))
+                ts_max = float(np.max(ts))
+                ts_range = ts_max - ts_min
+                expected_duration = (n - 1) / fps if fps else None
+
+                if ts_range == 0:
+                    issue_summary["constant_timestamps"].append(ep_name)
+                    self.add_result(
+                        ValidationLevel.ERROR,
+                        category,
+                        f"{ep_name}: all {n} timestamps are identical ({ts[0]:.6f}) — "
+                        f"video frame selection will always return frame 0",
+                    )
+                    has_error = True
+                elif expected_duration and ts_range < expected_duration * 0.01:
+                    issue_summary["constant_timestamps"].append(ep_name)
+                    self.add_result(
+                        ValidationLevel.ERROR,
+                        category,
+                        f"{ep_name}: timestamp range ({ts_range:.2e}s) is negligible "
+                        f"compared to expected episode duration ({expected_duration:.2f}s at {fps} fps) "
+                        f"— effectively constant",
+                    )
+                    has_error = True
+
+                # --- Check 3: Uniqueness ---
+                num_unique = len(np.unique(ts))
+                uniqueness_ratio = num_unique / n
+
+                if num_unique == 1 and n > 1:
+                    pass  # already reported in constant check
+                elif uniqueness_ratio < 0.5:
+                    issue_summary["low_uniqueness"].append(ep_name)
+                    self.add_result(
+                        ValidationLevel.ERROR,
+                        category,
+                        f"{ep_name}: only {num_unique}/{n} unique timestamp values "
+                        f"({uniqueness_ratio:.1%}) — most frames share timestamps, "
+                        f"causing incorrect video frame lookups",
+                    )
+                    has_error = True
+                elif uniqueness_ratio < 1.0:
+                    issue_summary["non_strictly_monotonic"].append(ep_name)
+                    num_duplicates = n - num_unique
                     self.add_result(
                         ValidationLevel.WARNING,
                         category,
-                        f"{ep_name}: first timestamp is {ts[0]:.2f}s — "
-                        f"timestamps may not be relative to episode start",
-                        "LeRobot defaults to frame_index/fps (starting at 0.0) when "
-                        "no explicit timestamp is provided; most datasets follow this convention",
+                        f"{ep_name}: {num_duplicates} duplicate timestamp value(s) "
+                        f"({num_unique}/{n} unique, {uniqueness_ratio:.1%}) — "
+                        f"ideally each frame should have a distinct timestamp",
                     )
                     has_warning = True
 
-            if has_error:
-                episodes_with_errors += 1
-            elif has_warning:
-                episodes_with_warnings += 1
+                # --- Check 4: Monotonicity ---
+                diffs = np.diff(ts)
+                num_decreasing = int(np.sum(diffs < 0))
+                if num_decreasing > 0:
+                    issue_summary["non_monotonic"].append(ep_name)
+                    first_decrease_idx = int(np.argmax(diffs < 0))
+                    self.add_result(
+                        ValidationLevel.ERROR,
+                        category,
+                        f"{ep_name}: timestamps are NOT monotonically increasing — "
+                        f"{num_decreasing} decrease(s) found "
+                        f"(first at index {first_decrease_idx}: "
+                        f"{ts[first_decrease_idx]:.6f} -> {ts[first_decrease_idx+1]:.6f})",
+                    )
+                    has_error = True
+
+                # --- Check 5: Spacing relative to FPS ---
+                if fps and ts_range > 0 and num_unique > 1:
+                    expected_spacing = 1.0 / fps
+                    positive_diffs = diffs[diffs > 0]
+                    if len(positive_diffs) > 0:
+                        mean_spacing = float(np.mean(positive_diffs))
+                        ratio = mean_spacing / expected_spacing
+                        if ratio > 5.0 or ratio < 0.1:
+                            issue_summary["bad_spacing"].append(ep_name)
+                            self.add_result(
+                                ValidationLevel.WARNING,
+                                category,
+                                f"{ep_name}: mean timestamp spacing ({mean_spacing:.4f}s) "
+                                f"deviates significantly from expected 1/{fps}={expected_spacing:.4f}s "
+                                f"(ratio: {ratio:.1f}x)",
+                                "This may indicate timestamps in wrong units or from a "
+                                "different clock source",
+                            )
+                            has_warning = True
+
+                # --- Check 6: Relative timestamps (should start near 0) ---
+                if 0 < ts[0] <= 1e6:
+                    if ts[0] > 60.0:
+                        issue_summary["not_relative"].append(ep_name)
+                        self.add_result(
+                            ValidationLevel.WARNING,
+                            category,
+                            f"{ep_name}: first timestamp is {ts[0]:.2f}s — "
+                            f"timestamps may not be relative to episode start",
+                            "LeRobot defaults to frame_index/fps (starting at 0.0) when "
+                            "no explicit timestamp is provided; most datasets follow this convention",
+                        )
+                        has_warning = True
+
+                if has_error:
+                    episodes_with_errors += 1
+                elif has_warning:
+                    episodes_with_warnings += 1
 
         # --- Aggregate summary ---
         if episodes_checked == 0:
@@ -938,7 +992,8 @@ class OpenHDatasetValidator:
         self.add_result(
             ValidationLevel.INFO,
             category,
-            f"Checked {episodes_checked} episode parquet file(s) for timestamp integrity.",
+            f"Checked {episodes_checked} episode(s) across {len(files_to_check)} parquet file(s) "
+            f"for timestamp integrity.",
         )
 
     def validate_data_synchronization(self):
@@ -999,13 +1054,13 @@ class OpenHDatasetValidator:
             dataset = LeRobotDataset(
                 repo_id,
                 root=str(self.dataset_path),
-                video_backend="pytorch",
+                video_backend="pyav",
             )
 
             self.add_result(
                 ValidationLevel.SUCCESS,
                 category,
-                "Dataset structure is compatible with LeRobot v2.1",
+                "Dataset structure is compatible with LeRobot v3.0",
             )
 
             # Check dataset properties
@@ -1037,13 +1092,13 @@ class OpenHDatasetValidator:
         """Manually validate LeRobot dataset structure without loading"""
         category = "LeRobot Structure"
 
-        # Check for essential LeRobot v2.1 files
+        # Check for essential LeRobot v3.0 files
         required_files = {
             "data": "Main data file",
             "meta/info.json": "Dataset information",
-            "meta/episodes_stats.jsonl": "Dataset statistics",
-            "meta/tasks.jsonl": "Task descriptions",
-            "meta/episodes.jsonl": "Episode information",
+            "meta/stats.json": "Dataset statistics",
+            "meta/tasks.parquet": "Task descriptions",
+            "meta/episodes": "Episode information",
         }
 
         all_present = True
@@ -1061,7 +1116,7 @@ class OpenHDatasetValidator:
             self.add_result(
                 ValidationLevel.SUCCESS,
                 category,
-                "All required LeRobot v2.1 files present",
+                "All required LeRobot v3.0 files present",
             )
 
         # Check video directory structure
@@ -1086,12 +1141,12 @@ class OpenHDatasetValidator:
                     parquet_files = []
 
                     for chunk_dir in chunk_dirs:
-                        episode_files = list(chunk_dir.glob("episode_*.parquet"))
-                        parquet_files.extend(episode_files)
+                        data_files = list(chunk_dir.glob("file-*.parquet"))
+                        parquet_files.extend(data_files)
 
                         # Read a sample file to check structure
-                        if episode_files:
-                            sample_file = episode_files[0]
+                        if data_files:
+                            sample_file = data_files[0]
                             df = pd.read_parquet(sample_file, engine="pyarrow")
                             total_rows += len(df)
 
@@ -1107,14 +1162,14 @@ class OpenHDatasetValidator:
                             self.add_result(
                                 ValidationLevel.WARNING,
                                 category,
-                                f"Episode parquet missing expected column: {col}",
+                                f"Data parquet missing expected column: {col}",
                             )
 
                         if parquet_files:
                             self.add_result(
                                 ValidationLevel.SUCCESS,
                                 category,
-                                f"Episode parquet files readable, sample contains {total_rows} rows",
+                                f"Data parquet files readable, sample contains {total_rows} rows",
                             )
 
                 except ImportError:
@@ -1128,13 +1183,13 @@ class OpenHDatasetValidator:
                     self.add_result(
                         ValidationLevel.WARNING,
                         category,
-                        f"Could not read episode parquet files: {str(e)[:100]}",
+                        f"Could not read data parquet files: {str(e)[:100]}",
                     )
 
     def run_validation(self) -> ValidationReport:
         """Run all validation checks"""
         print(f"\n{'='*60}")
-        print(f"Open-H Dataset Validation")
+        print("Open-H Dataset Validation")
         print(f"Dataset Path: {self.dataset_path}")
         print(f"{'='*60}\n")
 
@@ -1172,7 +1227,7 @@ class OpenHDatasetValidator:
         print(f"{'='*60}")
 
         # Count results by level
-        print(f"\n📊 Results Overview:")
+        print("\n📊 Results Overview:")
         print(f"  ✅ Success: {self.report.success_count}")
         print(f"  ℹ️  Info: {self.report.info_count}")
         print(f"  ⚠️  Warnings: {self.report.warning_count}")
@@ -1187,7 +1242,7 @@ class OpenHDatasetValidator:
 
         # Print errors and warnings by category
         if self.report.error_count > 0:
-            print(f"\n🚨 Critical Issues (Must Fix):")
+            print("\n🚨 Critical Issues (Must Fix):")
             for category, results in categories.items():
                 errors = [r for r in results if r.level == ValidationLevel.ERROR]
                 if errors:
@@ -1198,7 +1253,7 @@ class OpenHDatasetValidator:
                             print(f"      → {error.details}")
 
         if self.report.warning_count > 0:
-            print(f"\n⚠️  Recommendations (Should Fix):")
+            print("\n⚠️  Recommendations (Should Fix):")
             for category, results in categories.items():
                 warnings = [r for r in results if r.level == ValidationLevel.WARNING]
                 if warnings:
