@@ -27,7 +27,7 @@ This file helps others understand the context and details of your contribution.
 | **Total Hours** | `[Number]` |
 | **Total Trajectories** | `[Number]` |
 | **Data Type** | `[ ] Clinical` `[ ] In-Vivo` `[ ] Ex-Vivo` `[ ] Phantom / Table-Top` `[ ] Simulation` |
-| **License** | CC BY 4.0 |
+| **License** | OpenMDW-1.1 |
 | **Version** | `[e.g., 1.0]` |
 
 ---

@@ -40,7 +40,7 @@ Every submission must state, in `meta/README.md` and the dataset metadata:
 - Robotic platform(s).
 - Collection setting (clinical, in-vivo, ex-vivo, phantom / table-top, or simulation).
 - Modalities present, with synchronization method and sample rates.
-- Licence (CC BY 4.0) and de-identification status (HIPAA Safe Harbor or equivalent, GDPR for European contributors, including scrubbing imaging and video metadata on export).
+- Licence (OpenMDW-1.1) and de-identification status (HIPAA Safe Harbor or equivalent, GDPR for European contributors, including scrubbing imaging and video metadata on export).
 - Where a robot is involved: calibration data and robot CAD / kinematic-tree descriptions (USD, URDF, DH parameters, or equivalent). Hand-eye calibration is not required.
 - Camera intrinsics (encouraged for calibrated optical cameras): a `meta/calibration/camera_intrinsics.json` file keyed by camera feature name. Note its absence as a fix item, not a hard blocker.
 - Encouraged (note their absence, do not fail on it): time-aligned narration or sub-task descriptions, correlated anonymized patient information, demonstration-quality labels (expert, intermediate, novice), and task-success labels (success, recovery, failure).
